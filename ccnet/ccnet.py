@@ -9,32 +9,14 @@ import os
 import signal
 import logging
 
-# http://stackoverflow.com/questions/5179467/equivalent-of-setinterval-in-python
+__all__ = ['CCNET']
+
 logging.basicConfig(
     filename='/tmp/ccnet_py.tmp', filemode='w+', level=logging.DEBUG)
 
 
 class TimeoutError(Exception):
     pass
-
-
-def setInterval(interval, times=-1):
-    def outer_wrap(function):
-        def wrap(*args, **kwargs):
-            stop = threading.Event()
-
-            def inner_wrap():
-                i = 0
-                while i != times and not stop.isSet():
-                    stop.wait(interval)
-                    function(*args, **kwargs)
-                    i += 1
-            t = threading.Timer(0, inner_wrap)
-            t.daemon = True
-            t.start()
-            return stop
-        return wrap
-    return outer_wrap
 
 
 def timeout(seconds=30, error_message=os.strerror(errno.ETIME)):
@@ -83,14 +65,11 @@ class CCNET(object):
         0x80: 'Escrow position',
         0x81: 'Bill stacked',
         0x82: 'Bill returned'}
-    connected = False
     busy = False
-    command = False
-    globalTimer = False
-    globalListener = False
     billTable = []
     sync = '02'
-    state = 0
+    state = 0x10
+    device = {'Part': None, 'Serial': None, 'Asset': None}
 
     def __init__(self, port, deviceType="03"):
         self.cmd = Commands()
@@ -102,16 +81,26 @@ class CCNET(object):
     def connect(self, cb=False):
         self.connection.close()
         self.connection.open()
-        if self.execute('RESET') == "Done":
-            while self.execute('POLL')[0] is not 0x19:
-                threading.Event().wait(0.1)
-            self.execute('IDENTIFICATION')
-        else:
-            raise Exception('Reset Error')
+        try:
+            if self.execute('RESET') == "Done":
+                while self.execute('POLL')[0] is not 0x19:
+                    threading.Event().wait(0.1)
+                self.identification()
+            else:
+                raise Exception('Reset Error')
+        except Exception as e:
+            logging.error("Connection: " + str(e))
+            return False
+        return True
 
     def start(self,  billsEnable=[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]):
         self.billTable = self.execute('GET BILL TABLE')
         self.execute('ENABLE BILL TYPES', billsEnable)
+        return True
+
+    def identification(self):
+        self.device = self.execute('IDENTIFICATION')
+        return self.device
 
     def escrow(self):
         try:
@@ -154,19 +143,20 @@ class CCNET(object):
         logging.debug("Wait for state:" + str(self.states[state]))
         if dt:
             while True:
-                if self.getState() is state:
-                    return True
-                threading.Event().wait(0.1)
-        else:
-            while True:
                 dt = self.getState(dt=True)  # Update self.state and get data
                 if self.state is state:
                     return dt
+                threading.Event().wait(0.1)
+        else:
+            while True:
+                if self.getState() is state:
+                    return True
                 threading.Event().wait(0.1)
 
     def end(self, billsEnable=[0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]):
         self.execute('ENABLE BILL TYPES', billsEnable)
 
+    @timeout(10)
     def execute(self, command, data=None):
         if command is not "POLL":  # No pool debug, because Inf/0.1s loop
             logging.debug("Execute: " + str(command) + "[" + str(data) + "]")
@@ -181,6 +171,7 @@ class CCNET(object):
                 self.cmd(command).request(data), no_response=no_response)
         return self.cmd(command).response(r)
 
+    @timeout(30)
     def __send_command(self, command, no_response=False):
         self.busy = True
         try:
@@ -204,7 +195,7 @@ class CCNET(object):
             raise e
 
         self.busy = False
-        return 'FFFUUUCK'
+        return None
 
     @staticmethod
     def getCRC16(data, is_hex=True):
@@ -248,26 +239,3 @@ class CCNET(object):
         #     "////" + self.getCRC16(command, False)
         #     "////" + binascii.hexlify(command))
         return data
-
-
-ccnet = CCNET('/dev/ttyUSB0', '03')
-print ccnet.getState(True)
-ccnet.connect()
-print ccnet.getState(True)
-ccnet.start()
-i = 0
-while True:
-    i += 1
-    print "====================ESCROW===============" + str(i)
-    print ccnet.getState(True)
-    esc = ccnet.escrow()
-    if esc is not False:
-        ccnet.stack()
-        print esc['amount']
-        # if esc['amount'] > 4:
-        #     ccnet.stack()
-        # else:
-        #     ccnet.retrieve()
-    print ccnet.getState(True)
-    # esc = ccnet.end()
-    # print ccnet.getState(True)
