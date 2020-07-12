@@ -30,9 +30,7 @@ def get_status_response(data):
 
 
 def enable_bill_types_request(data):
-    data.insert(0, 0x34)
-    return ''.join(["%02X" % x for x in data]).strip()
-    # bytearray.fromhexdata.decode('hex')
+    return '34'+''.join(["%02X" % x for x in data]).strip()
 
 
 def identification_response(data):
