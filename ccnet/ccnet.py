@@ -93,7 +93,7 @@ class CCNET(object):
             return False
         return True
 
-    def start(self,  billsEnable=[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]):
+    def start(self,  billsEnable=(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)):
         self.billTable = self.execute('GET BILL TABLE')
         self.execute('ENABLE BILL TYPES', billsEnable)
         return True
@@ -153,7 +153,7 @@ class CCNET(object):
                     return True
                 threading.Event().wait(0.1)
 
-    def end(self, billsEnable=[0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]):
+    def end(self, billsEnable=(0x00, 0x00, 0x00, 0x00, 0x00, 0xFF)):
         self.execute('ENABLE BILL TYPES', billsEnable)
 
     @timeout(10)
