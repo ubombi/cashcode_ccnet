@@ -1,4 +1,6 @@
-# For demo purposes only. Not supported. Do not use in production.
-# cashcode_ccnet
 
-Python CCNET adapter for CashCode bill validator.
+
+## Please, use [kiriculum/cashcode_ccnet](https://github.com/kiriculum/cashcode_ccnet) fork instead.
+
+
+This repository is an archived PoC implementation of CCNET protocol. Not a production ready code.
